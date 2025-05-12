@@ -31,7 +31,8 @@ os.makedirs('test_inputs', exist_ok=True)
 # Initialize ANPR system
 @st.cache_resource
 def load_anpr():
-    return ANPR()
+    with st.spinner("Loading ANPR system... This may take a minute."):
+        return ANPR()
 
 try:
     anpr = load_anpr()
@@ -66,6 +67,29 @@ with st.expander("ℹ️ About Indian License Plates"):
     - KA-03-EF-9012 (Karnataka)
     
     This system is optimized to detect and recognize Indian license plates with high accuracy.
+    """)
+
+# Add a how-to-use section
+with st.expander("📋 How to Use This System", expanded=True):
+    st.markdown("""
+    ### How to Use the ANPR System
+    
+    1. **Upload an Image**: Use the file uploader to upload an image containing an Indian license plate.
+    2. **Select Demo Images**: Alternatively, you can select from the available demo images.
+    3. **View Results**: The system will display:
+       - The original image
+       - The detected license plate text with confidence score
+       - The highlighted plate region in the image
+    
+    **Tips for Best Results**:
+    - Use clear, well-lit images
+    - Ensure the license plate is visible and not too angled
+    - Images with a single license plate work best
+    - Higher resolution images provide better results
+    
+    **Troubleshooting**:
+    - If no plate is detected, try adjusting the detection confidence
+    - If text recognition is incorrect, try a different image angle
     """)
 
 st.markdown("""
@@ -117,7 +141,7 @@ preprocessing_level = st.sidebar.selectbox(
 # Advanced options
 with st.sidebar.expander("Advanced Options"):
     use_tesseract = st.checkbox("Use Tesseract OCR (if available)", value=True)
-    allow_hindi = st.checkbox("Allow Hindi Characters", value=True)
+    allow_hindi = st.checkbox("Allow Hindi Characters", value=False)
 
 # Main content area
 if input_type == "Image Upload":
@@ -129,27 +153,21 @@ if input_type == "Image Upload":
         # Process uploaded image
         image = process_uploaded_file(uploaded_file)
         if image is not None:
-            # Process the image without drawing boxes
-            with st.spinner("Processing image..."):
+            # Display original image
+            st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), caption="Original Image", use_container_width=True)
+            
+            # Process the image with a loading spinner
+            with st.spinner("Processing image... This may take a few moments."):
                 try:
                     # Override confidence threshold if user changed it
                     anpr.model.conf = confidence_threshold
-                    processed_image, plates, plate_regions = anpr.process_image(image, draw_boxes=False)
+                    processed_image, plates, plate_regions, confidences = anpr.process_image(image, draw_boxes=False)
                     
-                    # Get confidences from the results_df
-                    confidences = []
-                    if not anpr.results_df.empty:
-                        recent_results = anpr.results_df[anpr.results_df['filename'] == 'uploaded_image']
-                        if not recent_results.empty:
-                            for plate in plates:
-                                plate_results = recent_results[recent_results['plate_number'] == plate]
-                                if not plate_results.empty:
-                                    confidences.append(float(plate_results.iloc[0]['confidence']))
-                                else:
-                                    confidences.append(0.0)
-                    
-                    # Display original image
-                    st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), caption="Original Image", use_container_width=True)
+                    # Display a progress bar to indicate processing steps
+                    progress_bar = st.progress(0)
+                    for i in range(100):
+                        # Update progress bar
+                        progress_bar.progress(i + 1)
                     
                     # Display detected plates as text with improved visibility
                     display_plate_results(plates, confidences)
@@ -174,7 +192,10 @@ if input_type == "Image Upload":
                     # Save processed image
                     if plates:
                         output_path = save_processed_image(image, f"original_{uploaded_file.name}")
+                        st.success(f"✅ License plate detected and recognized successfully!")
                         st.info(f"Original image saved to: {output_path}")
+                    else:
+                        st.warning("⚠️ No license plates were detected in this image. Try adjusting the detection confidence or use a clearer image.")
                 except Exception as e:
                     st.error(f"Error processing image: {str(e)}")
                     st.info("Please try another image or adjust the configuration settings.")
@@ -212,28 +233,22 @@ else:  # Demo Images
         if selected_image:
             image_path = os.path.join('test_inputs', selected_image)
             
-            # Process the image without drawing boxes
-            with st.spinner("Processing image..."):
+            # Display original image
+            st.image(cv2.imread(image_path), caption="Original Image", channels="BGR", use_container_width=True)
+            
+            # Process the image with a loading spinner
+            with st.spinner("Processing image... This may take a few moments."):
                 try:
                     # Override confidence threshold if user changed it
                     anpr.model.conf = confidence_threshold
                     original_image = cv2.imread(image_path)
-                    processed_image, plates, plate_regions = anpr.process_image(image_path, draw_boxes=False)
+                    processed_image, plates, plate_regions, confidences = anpr.process_image(image_path, draw_boxes=False)
                     
-                    # Get confidences from the results_df
-                    confidences = []
-                    if not anpr.results_df.empty:
-                        recent_results = anpr.results_df[anpr.results_df['filename'] == selected_image]
-                        if not recent_results.empty:
-                            for plate in plates:
-                                plate_results = recent_results[recent_results['plate_number'] == plate]
-                                if not plate_results.empty:
-                                    confidences.append(float(plate_results.iloc[0]['confidence']))
-                                else:
-                                    confidences.append(0.0)
-                    
-                    # Display results
-                    st.image(cv2.imread(image_path), caption="Original Image", channels="BGR", use_container_width=True)
+                    # Display a progress bar to indicate processing steps
+                    progress_bar = st.progress(0)
+                    for i in range(100):
+                        # Update progress bar
+                        progress_bar.progress(i + 1)
                     
                     # Display detected plates as text with improved visibility
                     display_plate_results(plates, confidences)
@@ -254,6 +269,11 @@ else:  # Demo Images
                         # Display the image with highlighted plates
                         st.image(cv2.cvtColor(highlight_image, cv2.COLOR_BGR2RGB), 
                                 caption="Detected Plate Regions", use_container_width=True)
+                    
+                    if plates:
+                        st.success(f"✅ License plate detected and recognized successfully!")
+                    else:
+                        st.warning("⚠️ No license plates were detected in this image. Try adjusting the detection confidence or use a clearer image.")
                 except Exception as e:
                     st.error(f"Error processing image: {str(e)}")
                     st.info("Please try another image or adjust the configuration settings.")

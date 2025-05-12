@@ -1,8 +1,6 @@
 import cv2
 import numpy as np
 import easyocr
-import pytesseract
-from ultralytics import YOLO
 import os
 from datetime import datetime
 import pandas as pd
@@ -21,13 +19,15 @@ class ANPR:
     def __init__(self):
         # Initialize YOLO model for plate detection
         try:
+            from ultralytics import YOLO
             self.model = YOLO('yolov5nu.pt')  # Use improved YOLOv5 model
         except:
+            from ultralytics import YOLO
             self.model = YOLO('yolov8n.pt')  # Fall back to YOLOv8
             
-        # Initialize EasyOCR reader with compatible language combinations
-        # Only use English and Hindi (they are compatible)
-        self.reader = easyocr.Reader(['en', 'hi'], gpu=torch.cuda.is_available())
+        # Initialize EasyOCR reader with only English for better accuracy
+        self.reader = easyocr.Reader(['en'], gpu=torch.cuda.is_available(), 
+                                    recog_network='english_g2')
         
         # Try to set up Tesseract as a backup OCR engine
         self.tesseract_available = TESSERACT_AVAILABLE
@@ -35,8 +35,8 @@ class ANPR:
             try:
                 # Check if tesseract is available
                 pytesseract.get_tesseract_version()
-                # Configure tesseract for Indian plates
-                self.custom_config = r'--oem 3 --psm 6 -l eng+hin'
+                # Configure tesseract for license plates (PSM 7 - single line of text)
+                self.custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
             except:
                 self.tesseract_available = False
         
@@ -170,26 +170,33 @@ class ANPR:
             pil_img = Image.fromarray(cv2.cvtColor(plate_img, cv2.COLOR_BGR2RGB))
         else:
             pil_img = plate_img
+        
+        # Resize image to improve OCR (larger is better for OCR)
+        width, height = pil_img.size
+        scale_factor = 2.0  # Double the size
+        resized_img = pil_img.resize((int(width * scale_factor), int(height * scale_factor)), 
+                                     Image.Resampling.LANCZOS)
+        enhanced_images.append(cv2.cvtColor(np.array(resized_img), cv2.COLOR_RGB2BGR))
             
         # Original image
         enhanced_images.append(cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR))
         
         # Enhance contrast
-        contrast_enhancer = ImageEnhance.Contrast(pil_img)
+        contrast_enhancer = ImageEnhance.Contrast(resized_img)
         contrast_img = contrast_enhancer.enhance(2.0)  # Increase contrast
         enhanced_images.append(cv2.cvtColor(np.array(contrast_img), cv2.COLOR_RGB2BGR))
         
         # Enhance sharpness
-        sharpness_enhancer = ImageEnhance.Sharpness(pil_img)
+        sharpness_enhancer = ImageEnhance.Sharpness(resized_img)
         sharp_img = sharpness_enhancer.enhance(2.0)  # Increase sharpness
         enhanced_images.append(cv2.cvtColor(np.array(sharp_img), cv2.COLOR_RGB2BGR))
         
         # Apply median filter to reduce noise
-        median_img = pil_img.filter(ImageFilter.MedianFilter(size=3))
+        median_img = resized_img.filter(ImageFilter.MedianFilter(size=3))
         enhanced_images.append(cv2.cvtColor(np.array(median_img), cv2.COLOR_RGB2BGR))
         
         # Apply unsharp mask filter to enhance edges
-        unsharp_img = pil_img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
+        unsharp_img = resized_img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
         enhanced_images.append(cv2.cvtColor(np.array(unsharp_img), cv2.COLOR_RGB2BGR))
         
         # Convert to OpenCV format and apply additional processing
@@ -215,6 +222,15 @@ class ANPR:
             # Apply morphological operations to the Otsu result
             morph_open = cv2.morphologyEx(otsu, cv2.MORPH_OPEN, kernel)
             enhanced_images.append(morph_open)
+            
+            # Add inverted images (white text on black background)
+            inverted = cv2.bitwise_not(gray)
+            enhanced_images.append(inverted)
+            
+            # Try different binarization thresholds
+            for threshold in [100, 120, 140, 160, 180]:
+                _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+                enhanced_images.append(binary)
         
         return enhanced_images
 
@@ -239,9 +255,13 @@ class ANPR:
         
         for img in enhanced_images:
             try:
+                # Use allowlist to restrict to characters found on license plates
                 results = self.reader.readtext(img, detail=1, paragraph=False, 
                                               allowlist='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-')
-                all_results.extend(results)
+                
+                # Filter out results with very low confidence or short text
+                filtered_results = [r for r in results if r[2] > 0.3 and len(r[1]) > 2]
+                all_results.extend(filtered_results)
             except Exception as e:
                 print(f"EasyOCR error: {e}")
         
@@ -249,47 +269,64 @@ class ANPR:
         if self.tesseract_available:
             for img in enhanced_images:
                 try:
-                    # Use Tesseract with Indian language support
+                    # Use Tesseract with optimized config for license plates
                     text = pytesseract.image_to_string(img, config=self.custom_config)
-                    if text.strip():
+                    if text and len(text.strip()) > 2:
                         # Add to results with a moderate confidence
                         all_results.append(([0, 0, 0, 0], text.strip(), 0.5))
                 except Exception as e:
                     print(f"Tesseract error: {e}")
         
         if all_results:
-            # Get the text with highest confidence
-            best_result = max(all_results, key=lambda x: x[2])
-            text = best_result[1]
-            confidence = best_result[2]
+            # Sort results by confidence
+            all_results.sort(key=lambda x: x[2], reverse=True)
             
-            # Only accept results with confidence above threshold
-            if confidence > 0.3:  # Lowered threshold for Indian plates
+            # Try to find the best result that looks like an Indian license plate
+            for result in all_results:
+                text = result[1]
+                confidence = result[2]
+                
                 # Clean up the text (remove spaces and special characters)
                 text = ''.join(c for c in text if c.isalnum() or c == '-')
                 
                 # Format according to Indian license plate pattern (if possible)
                 formatted_text = self._format_indian_plate(text)
-                return formatted_text if formatted_text else text, confidence
-        
-        # Try one more time with the original image if no good results
-        if not all_results or confidence <= 0.3:
-            try:
-                results_original = self.reader.readtext(plate_img, detail=1, paragraph=False,
-                                                      allowlist='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-')
-                if results_original:
-                    best_result = max(results_original, key=lambda x: x[2])
-                    text = best_result[1]
-                    confidence = best_result[2]
-                    # Clean up the text
-                    text = ''.join(c for c in text if c.isalnum() or c == '-')
-                    # Format according to Indian license plate pattern (if possible)
-                    formatted_text = self._format_indian_plate(text)
-                    return formatted_text if formatted_text else text, confidence
-            except Exception as e:
-                print(f"Final OCR attempt error: {e}")
+                
+                # Check if the text matches Indian license plate pattern
+                if self._is_likely_indian_plate(formatted_text):
+                    return formatted_text, confidence
+            
+            # If no good match found, return the highest confidence result
+            best_result = all_results[0]
+            text = best_result[1]
+            confidence = best_result[2]
+            
+            # Clean up the text
+            text = ''.join(c for c in text if c.isalnum() or c == '-')
+            
+            # Format according to Indian license plate pattern
+            formatted_text = self._format_indian_plate(text)
+            return formatted_text, confidence
                 
         return None, 0.0
+    
+    def _is_likely_indian_plate(self, text):
+        """Check if the text is likely to be an Indian license plate"""
+        if not text or len(text) < 4:
+            return False
+            
+        # Check for common patterns in Indian plates
+        text = text.upper()
+        
+        # Check if first two characters are a valid state code
+        if len(text) >= 2 and text[:2] in self.indian_state_codes:
+            return True
+            
+        # Check for digits and letters in the right places
+        if re.match(r'^[A-Z]{2}\d{1,2}[A-Z]{1,2}\d{1,4}$', text.replace('-', '')):
+            return True
+            
+        return False
         
     def _format_indian_plate(self, text):
         """Format text according to Indian license plate pattern if possible"""
@@ -351,10 +388,11 @@ class ANPR:
             draw_boxes: Whether to draw bounding boxes on the image (default: False)
             
         Returns:
-            tuple: (processed_frame, detected_plates, plate_regions)
+            tuple: (processed_frame, detected_plates, plate_regions, confidences)
                 - processed_frame: Original or annotated frame depending on draw_boxes
                 - detected_plates: List of detected plate texts
                 - plate_regions: List of plate coordinates (x1, y1, x2, y2)
+                - confidences: List of confidence scores
         """
         # Create a copy of the frame if we need to draw on it
         if draw_boxes:
@@ -385,7 +423,7 @@ class ANPR:
                     cv2.putText(processed_frame, plate_text, (x1, y1-10),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
         
-        return processed_frame, detected_plates, plate_regions
+        return processed_frame, detected_plates, plate_regions, confidences
 
     def save_results(self, filename, plate_number, confidence=0.0):
         """Save detection results to CSV"""
@@ -420,13 +458,14 @@ class ANPR:
             if not ret:
                 break
                 
-            processed_frame, plates, _ = self.process_frame(frame, draw_boxes)
+            processed_frame, plates, _, confidences = self.process_frame(frame, draw_boxes)
             frames.append(processed_frame)
             all_detected_plates.append(plates)
             
             # Save results for each detected plate
-            for plate in plates:
-                self.save_results(os.path.basename(video_path), plate)
+            for i, plate in enumerate(plates):
+                confidence = confidences[i] if i < len(confidences) else 0.0
+                self.save_results(os.path.basename(video_path), plate, confidence)
         
         cap.release()
         return frames, all_detected_plates
@@ -439,10 +478,11 @@ class ANPR:
             draw_boxes: Whether to draw bounding boxes on the image
             
         Returns:
-            tuple: (processed_frame, detected_plates, plate_regions)
+            tuple: (processed_frame, detected_plates, plate_regions, confidences)
                 - processed_frame: Original or annotated frame
                 - detected_plates: List of detected plate texts
                 - plate_regions: List of plate coordinates
+                - confidences: List of confidence scores for each plate
         """
         # Handle both file paths and direct image inputs
         if isinstance(image_input, str):
@@ -454,10 +494,11 @@ class ANPR:
             frame = image_input
             filename = "uploaded_image"
             
-        processed_frame, plates, plate_regions = self.process_frame(frame, draw_boxes)
+        processed_frame, plates, plate_regions, confidences = self.process_frame(frame, draw_boxes)
         
         # Save results for each detected plate
-        for plate in plates:
-            self.save_results(filename, plate)
+        for i, plate in enumerate(plates):
+            confidence = confidences[i] if i < len(confidences) else 0.0
+            self.save_results(filename, plate, confidence)
         
-        return processed_frame, plates, plate_regions 
+        return processed_frame, plates, plate_regions, confidences 
