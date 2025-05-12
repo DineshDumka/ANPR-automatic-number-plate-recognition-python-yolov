@@ -1,0 +1,185 @@
+/* Style for license plate text */
+.license-plate-box {
+    background-color: #333;
+    border: 2px solid #ffc107;
+    border-radius: 5px;
+    padding: 12px;
+    margin: 15px 0;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    font-size: 24px;
+    text-align: center;
+    color: #fff;
+    letter-spacing: 2px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Style for original text */
+.original-text {
+    font-size: 14px;
+    color: #666;
+    text-align: center;
+    margin-top: -10px;
+    margin-bottom: 15px;
+    font-style: italic;
+}
+
+/* Style for plate detection section */
+.plate-section {
+    background-color: #f9f9f9;
+    border-left: 4px solid #4CAF50;
+    padding: 15px;
+    margin: 20px 0;
+    border-radius: 0 5px 5px 0;
+}
+
+/* Style for no plate detected warning */
+.no-plate-container {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 10px 15px;
+    border-radius: 0 5px 5px 0;
+}
+
+.no-plate {
+    color: #856404;
+    font-style: italic;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.no-plate-suggestion {
+    color: #856404;
+    font-size: 14px;
+}
+
+/* Style for detection history */
+.history-table {
+    font-size: 14px;
+    border-collapse: collapse;
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+.history-table th {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.history-table tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+/* Style for main title */
+.main-title {
+    color: #2e7d32;
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 2.5rem;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Style for section headers */
+.section-header {
+    color: #1976d2;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 8px;
+    margin-top: 25px;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+/* Indian flag colors for accent */
+.indian-flag-accent {
+    background: linear-gradient(to right, #FF9933, #FFFFFF, #138808);
+    height: 5px;
+    margin: 10px 0 20px 0;
+    border-radius: 5px;
+}
+
+/* Style for about section */
+.streamlit-expanderHeader {
+    background-color: #f5f5f5;
+    border-radius: 5px;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.streamlit-expanderContent {
+    background-color: #f9f9f9;
+    border-left: 4px solid #1976d2;
+    padding: 10px 15px;
+    border-radius: 0 5px 5px 0;
+    margin-bottom: 20px;
+}
+
+/* Improve button styling */
+.stButton > button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.stButton > button:hover {
+    background-color: #45a049;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+/* Improve file uploader */
+.stFileUploader {
+    border: 2px dashed #ccc;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 20px;
+}
+
+/* Progress bar styling */
+.stProgress > div > div {
+    background-color: #4CAF50;
+}
+
+/* Improve sidebar styling */
+.css-1d391kg {
+    background-color: #f5f5f5;
+}
+
+/* Improve dataframe styling */
+.dataframe {
+    font-size: 12px;
+}
+
+/* Style for slider */
+.stSlider {
+    margin-top: 10px;
+    margin-bottom: 20px;
+}
+
+/* Style for checkbox */
+.stCheckbox {
+    margin-top: 10px;
+    margin-bottom: 20px;
+}
+
+/* Style for expander */
+.streamlit-expander {
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .license-plate-box {
+        font-size: 18px;
+        padding: 8px;
+    }
+    
+    .main-title {
+        font-size: 2rem;
+    }
+} 
