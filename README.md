@@ -7,6 +7,8 @@
 ![YOLOv5](https://img.shields.io/badge/YOLOv5-8.0.0-yellow)
 ![EasyOCR](https://img.shields.io/badge/EasyOCR-1.7.2-purple)
 
+**🚀 [Live Demo: Try the app online!](https://dineshdumka-anpr-automatic-number-plate-recognition--app-cilo5z.streamlit.app/)**
+
 An advanced Automatic Number Plate Recognition (ANPR) system specifically optimized for Indian license plates. This system uses state-of-the-art computer vision and OCR techniques to accurately detect and recognize Indian license plates from images.
 
 ## 🚀 Features
@@ -75,6 +77,11 @@ pip install -r requirements.txt
 
 ## 🏃‍♂️ Running the Application
 
+### Online Demo
+You can try the application online without any installation:
+**[Live Demo](https://dineshdumka-anpr-automatic-number-plate-recognition--app-cilo5z.streamlit.app/)**
+
+### Local Installation
 1. Start the Streamlit app:
 ```bash
 streamlit run app.py
